@@ -55,5 +55,10 @@
     </None>
     <None Include="Instructions.md" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Instructions.html">
+      <DependentUpon>Instructions.md</DependentUpon>
+    </Content>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
