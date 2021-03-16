@@ -21,7 +21,6 @@
 
 using System;
 using System.Configuration;
-using System.Data.SqlClient;
 using System.IO;
 using System.Text;
 
@@ -32,45 +31,53 @@ namespace RandomDatabaseGenerator
     {
         #region Local variables
         public static bool CreateSQLScript;
-        public static string connectionString;
-        public static bool SQLServerDestination;
-
+        public static bool CreateOracleScript;
+        public static bool CreatePostgreSQLScript;
+        public static bool CreateMySQLScript;
+        public static bool CreateMariaDBScript;
         public static int NumberOfTablesToCreate;
         public static int MaxNumberOfColumnsPerTable;
         public static int MaxNumberOfRowsPerTable;
-
         public static string DatabaseName;
         public static Random r;
-        public static FileStream script = null;
+
+        public static sql sqlServer; 
+        public static oracle oracleServer;
+        public static postgreSQL postgreSQLServer;
+        public static mySQL mySQLServer;
+        public static mariaDB mariaDBServer;
+
         public static string ScriptFolderPath;
         public static FileStream logFile = null;
         #endregion  
         
         static void Main(string[] args)
         {
+            // Read app.config to see what we need to do
             GetConfigurationValues();
+            // set up our log file to record activities
             logFile = File.Create(ScriptFolderPath + "Activity.log");
+            // inialized our Random number generator
             r = new Random();
             DateTime startTime = DateTime.Now;
             WriteInColor(ConsoleColor.Yellow, string.Format("Started at :{0}", startTime),true);
-            if (CreateSQLScript == true)
-            {
-                script = File.Create(ScriptFolderPath + "Output.sql");
-            }
+            // For each of the rdbms systems, create their filestream objects
+            InitializeFiles();
+            // System specific CREATE DATABASE statements
             InitializeDB();
+            // Let make tables
             CreateTables();
             Console.WriteLine("Complete");
             DateTime endTime = DateTime.Now;
             WriteInColor(ConsoleColor.Yellow, string.Format("Finished at :{0}", endTime),true);
             WriteInColor(ConsoleColor.Yellow, string.Format("Elapsed Time {0}", endTime - startTime),true);
             WriteInColor(ConsoleColor.Red, "Press any key to end.",true);
-            script.Flush();
-            script.Close();
-            logFile.Flush();
-            logFile.Close();
+            // Make sure all filestream objects have flushed and closed their streams.
+            FlushAndCloseFiles();
             Console.ReadKey(true);
         }
-        
+
+        #region Helper Functions
         // Read all configuration items from App.Config and populate local variables
         public static void GetConfigurationValues()
         {
@@ -98,6 +105,30 @@ namespace RandomDatabaseGenerator
                 bool.TryParse(ConfigurationManager.AppSettings["CreateSQLScript"], out value);
                 CreateSQLScript = value;
             }
+            if (ConfigurationManager.AppSettings["CreateOracleScript"] != null)
+            {
+                bool value = false;
+                bool.TryParse(ConfigurationManager.AppSettings["CreateOracleScript"], out value);
+                CreateOracleScript = value;
+            }
+            if (ConfigurationManager.AppSettings["CreatePostgreSQLScript"] != null)
+            {
+                bool value = false;
+                bool.TryParse(ConfigurationManager.AppSettings["CreatePostgreSQLScript"], out value);
+                CreatePostgreSQLScript = value;
+            }
+            if (ConfigurationManager.AppSettings["CreateMySQLScript"] != null)
+            {
+                bool value = false;
+                bool.TryParse(ConfigurationManager.AppSettings["CreateMySQLScript"], out value);
+                CreateMySQLScript = value;
+            }
+            if (ConfigurationManager.AppSettings["CreateMariaDBScript"] != null)
+            {
+                bool value = false;
+                bool.TryParse(ConfigurationManager.AppSettings["CreateMariaDBScript"], out value);
+                CreateMariaDBScript = value;
+            }
             if (ConfigurationManager.AppSettings["DatabaseName"] != null)
             {
                 DatabaseName = ConfigurationManager.AppSettings["DatabaseName"].ToString();
@@ -106,95 +137,8 @@ namespace RandomDatabaseGenerator
             {
                 ScriptFolderPath = ConfigurationManager.AppSettings["ScriptFolderPath"].ToString();
             }
-            if (ConfigurationManager.AppSettings["SQLServerDestination"] != null)
-            {
-                bool value = false;
-                bool.TryParse(ConfigurationManager.AppSettings["SQLServerDestination"], out value);
-                SQLServerDestination = value;
-            }
-            if (ConfigurationManager.ConnectionStrings["Destination"] != null)
-            {
-                connectionString = ConfigurationManager.ConnectionStrings["Destination"].ToString();
-            }
         }
-
-        // Will remove the database specified by the DatabaseName in the App.Config file
-        // and recreate it
-        private static void InitializeDB()
-        {
-
-            WriteInColor(ConsoleColor.White, "Re-initilizing database",true);
-            using (SqlConnection connection = new SqlConnection(connectionString))
-            {
-                connection.Open();
-                using (SqlCommand command = new SqlCommand())
-                {
-                    command.Connection = connection;
-                    //command.CommandText = "USE master; ALTER DATABASE " + DatabaseName + " SET  SINGLE_USER WITH ROLLBACK IMMEDIATE;";
-                    //command.ExecuteNonQuery();
-                    //WriteToFile(command.CommandText);
-                    command.CommandText = "USE master; DROP DATABASE IF EXISTS " + DatabaseName + ";";
-                    command.ExecuteNonQuery();
-                    WriteToFile(command.CommandText);
-                    command.CommandText = "USE master; CREATE DATABASE " + DatabaseName + ";";
-                    command.ExecuteNonQuery();
-                    WriteToFile(command.CommandText);
-                    command.CommandText = "USE " + DatabaseName + ";";
-                    command.ExecuteNonQuery();
-                    WriteToFile(command.CommandText);
-                }
-            }
-        }
-
-        // Based on the configurations values we will create X tables with a random number
-        // of rows up to the maximum specified in App.Config
-        private static void CreateTables()
-        {
-            using (SqlConnection connection = new SqlConnection(connectionString))
-            {
-                DataTypes t = new DataTypes(SQLServerDestination);
-                StringBuilder sql = new StringBuilder();
-                StringBuilder insert = new StringBuilder();
-                StringBuilder insert2 = new StringBuilder();
-                connection.Open();
-                connection.ChangeDatabase(DatabaseName);
-                using (SqlCommand command = new SqlCommand(sql.ToString(), connection))
-                {
-                    for (int tables = 0; tables < NumberOfTablesToCreate; tables++)
-                    {
-                        sql = new StringBuilder("CREATE TABLE Test" + tables.ToString() + "(");
-                        insert2 = new StringBuilder();
-                        sql.Append("id  int NOT NULL,");
-                        int randomColumnCount = r.Next(3, MaxNumberOfColumnsPerTable);
-                        for (int columns = 0; columns < randomColumnCount; columns++)
-                        {
-                            int index = r.Next(0, 13);
-                            sql.Append(string.Format("Col{0} {1}", columns.ToString(), t.GetDataTypeString(index)));
-                            insert2.Append("," + t.GetDataTypeValue(index));
-                        }
-                        sql.Append(")");
-                        command.CommandText = sql.ToString();
-                        WriteToFile(command.CommandText);
-                        command.ExecuteNonQuery();
-                        WriteInColor(ConsoleColor.Green, string.Format("Creating table: {0} with {1} columns.\t",tables.ToString(),randomColumnCount));
-                        int randomRowCount = r.Next(1, MaxNumberOfRowsPerTable);
-                        for (int count = 0; count < randomRowCount; count++)
-                        {
-                            insert = new StringBuilder("Insert into Test" + tables.ToString() + " VALUES(");
-                            insert.Append(count.ToString());
-                            insert.Append(insert2.ToString());
-                            insert.Append(")");
-                            command.CommandText = insert.ToString();
-                            command.ExecuteNonQuery();
-                            WriteToFile(command.CommandText);
-                        }
-                        WriteInColor(ConsoleColor.Yellow, string.Format("Adding {0} rows.", randomRowCount),true);
-                    }
-                }
-            }
-        }
-
-        #region Helper Functions
+        
         // Writes a message in color to the console. Also duplicates that message 
         // in the activity log
         private static void WriteInColor(ConsoleColor c, string message, bool addReturn = false)
@@ -211,24 +155,7 @@ namespace RandomDatabaseGenerator
             Console.ResetColor();
             WriteToLog(message, addReturn);
         }
-        // Writes a message in color to the console. Also duplicates that message 
-        // in the activity log
-        //private static void WriteLineInColor(ConsoleColor c, string message)
-        //{
-        //    Console.ForegroundColor = c;
-        //    Console.WriteLine(message);
-        //    Console.ResetColor();
-        //    WriteToLog(message ,true);
-        //}
-        // As we create the CREATE TABLE and INSERT statements, save them to the script file.
-        private static void WriteToFile(string message)
-        {
-            if (script != null)
-            {
-                Byte[] info = new UTF8Encoding(false).GetBytes(message + "\r\n");
-                script.Write(info, 0, info.Length);
-            }
-        }
+        
         // Method to localize all writes to the activity log. When called from WriteInColor 
         // we will not append a cararige return.
         private static void WriteToLog(string message, bool addReturn = false)
@@ -238,6 +165,257 @@ namespace RandomDatabaseGenerator
                 message += (addReturn) ? "\r\n" : "";
                 Byte[] info = new UTF8Encoding(false).GetBytes(message);
                 logFile.Write(info, 0, info.Length);
+            }
+        }
+        
+        // Method will do initialize the FileStream objects for each system type
+        private static void InitializeFiles()
+        {
+            if (CreateSQLScript == true)
+            {
+                sqlServer = new sql(ScriptFolderPath, "SQL Server.sql");
+            }
+            if (CreateOracleScript == true)
+            {
+                oracleServer = new oracle(ScriptFolderPath, "Oracle.sql");
+            }
+            if (CreatePostgreSQLScript == true)
+            {
+                postgreSQLServer = new postgreSQL(ScriptFolderPath, "PostgreSQL.sql");
+            }
+            if (CreateMySQLScript == true)
+            {
+                mySQLServer = new mySQL(ScriptFolderPath, "MySQL.sql");
+            }
+            if (CreateMariaDBScript == true)
+            {
+                mariaDBServer = new mariaDB(ScriptFolderPath, "MariaDB.sql");
+            }
+        }
+
+        //TODO: implement InitializedB() for remaining systems.
+        // Method will do CREATE DATABASE specific script
+        private static void InitializeDB()
+        {
+            WriteInColor(ConsoleColor.White, "Re-initilizing database", true);
+            if (CreateSQLScript)
+            {
+                sqlServer.InitializeDB(DatabaseName);
+            }
+            if (CreateOracleScript == true)
+            {
+                oracleServer.InitializeDB(DatabaseName); ;
+            }
+            if (CreatePostgreSQLScript == true)
+            {
+                postgreSQLServer.InitializeDB(DatabaseName);
+            }
+            if (CreateMySQLScript == true)
+            {
+                mySQLServer.InitializeDB(DatabaseName);
+            }
+            if (CreateMariaDBScript == true)
+            {
+                mariaDBServer.InitializeDB(DatabaseName);
+            }
+        }
+
+        // Based on the configurations values we will create X tables with a random number
+        // of rows up to the maximum specified in App.Config
+        private static void CreateTables()
+        {
+            for (int tables = 0; tables < NumberOfTablesToCreate; tables++)
+            {
+                Preamble(tables.ToString());
+                int randomColumnCount = r.Next(3, MaxNumberOfColumnsPerTable);
+                for (int columns = 0; columns < randomColumnCount; columns++)
+                {
+                    // This depends on the number of base data types we will support
+                    // right now there are 15...
+                    int index = r.Next(0, 14);
+                    AddColumns(columns.ToString(), index);
+                }
+                TrimEnd(false);
+                WriteInColor(ConsoleColor.Green, string.Format("Creating table: {0} with {1} columns.\t", tables.ToString(), randomColumnCount));
+                int randomRowCount = r.Next(1, MaxNumberOfRowsPerTable);
+                for (int count = 0; count < randomRowCount; count++)
+                {
+                    AddRows(tables, count);
+                }
+                Reset();
+                WriteInColor(ConsoleColor.Yellow, string.Format("Adding {0} rows.", randomRowCount), true);
+            }
+        }
+        
+        // Method will ensure all filestreams are flushed and closed
+        private static void FlushAndCloseFiles()
+        {
+            if (sqlServer != null)
+            {
+                sqlServer.FlushAndClose();
+            }
+            if (oracleServer != null)
+            {
+                oracleServer.FlushAndClose();
+            }
+            if (postgreSQLServer != null)
+            {
+                postgreSQLServer.FlushAndClose();
+            }
+            if (mySQLServer != null)
+            {
+                mySQLServer.FlushAndClose();
+            }
+            if (mariaDBServer != null)
+            {
+                mariaDBServer.FlushAndClose();
+            }
+            logFile.Flush();
+            logFile.Close();
+        }
+
+        // Method will start the CREATE TABLE statements
+        private static void Preamble(string tables)
+        {
+            if (CreateSQLScript)
+            {
+                sqlServer.AddToScript("CREATE TABLE Test" + tables.ToString() + "(id int NOT NULL,");
+            }
+            if (CreateOracleScript == true)
+            {
+                oracleServer.AddToScript("CREATE TABLE Test" + tables.ToString() + "(id NUMBER NOT NULL,");
+            }
+            if (CreatePostgreSQLScript == true)
+            {
+                postgreSQLServer.AddToScript("CREATE TABLE Test" + tables.ToString() + "(id int NOT NULL,");
+            }
+            if (CreateMySQLScript == true)
+            {
+                mySQLServer.AddToScript("CREATE TABLE Test" + tables.ToString() + "(id int NOT NULL,");
+            }
+            if (CreateMariaDBScript == true)
+            {
+                mariaDBServer.AddToScript("CREATE TABLE Test" + tables.ToString() + "(id int NOT NULL,");
+            }
+        }
+
+        // Method will add the sets of columns for each system
+        private static void AddColumns(string columns, int index)
+        {
+            if (CreateSQLScript)
+            {
+                sqlServer.AddColumn(columns, index);
+            }
+            if (CreateOracleScript == true)
+            {
+                oracleServer.AddColumn(columns, index);
+            }
+            if (CreatePostgreSQLScript == true)
+            {
+                postgreSQLServer.AddColumn(columns, index);
+            }
+            if (CreateMySQLScript == true)
+            {
+                mySQLServer.AddColumn(columns, index);
+            }
+            if (CreateMariaDBScript == true)
+            {
+                mariaDBServer.AddColumn(columns, index);
+            }
+        }
+
+        // Method will add rows of random data
+        private static void AddRows(int tables, int count)
+        {
+            if (sqlServer != null)
+            {
+                StringBuilder insert = new StringBuilder("Insert into Test" + tables.ToString() + " VALUES(");
+                insert.Append(count.ToString() + ",");
+                insert.Append(sqlServer.rows);
+                insert.Append(");");
+                sqlServer.AddRow(insert.ToString());
+            }
+            if (oracleServer != null)
+            {
+                StringBuilder insert = new StringBuilder("Insert into Test" + tables.ToString() + " VALUES(");
+                insert.Append(count.ToString() + ",");
+                insert.Append(oracleServer.rows);
+                insert.Append(");");
+                oracleServer.AddRow(insert.ToString());
+            }
+            if (postgreSQLServer != null)
+            {
+                StringBuilder insert = new StringBuilder("Insert into Test" + tables.ToString() + " VALUES(");
+                insert.Append(count.ToString() + ",");
+                insert.Append(postgreSQLServer.rows);
+                insert.Append(");");
+                postgreSQLServer.AddRow(insert.ToString());
+            }
+            if (mySQLServer != null)
+            {
+                StringBuilder insert = new StringBuilder("Insert into Test" + tables.ToString() + " VALUES(");
+                insert.Append(count.ToString() + ",");
+                insert.Append(mySQLServer.rows);
+                insert.Append(");");
+                mySQLServer.AddRow(insert.ToString());
+            }
+            if (mariaDBServer != null)
+            {
+                StringBuilder insert = new StringBuilder("Insert into Test" + tables.ToString() + " VALUES(");
+                insert.Append(count.ToString() + ",");
+                insert.Append(mariaDBServer.rows);
+                insert.Append(");");
+                mariaDBServer.AddRow(insert.ToString());
+            }
+        }
+
+        // Method will reset each of the systems in preparation for the next rows
+        private static void Reset()
+        {
+            if (sqlServer != null)
+            {
+                sqlServer.Reset();
+            }
+            if (oracleServer != null)
+            {
+                oracleServer.Reset();
+            }
+            if (postgreSQLServer != null)
+            {
+                postgreSQLServer.Reset();
+            }
+            if (mySQLServer != null)
+            {
+                mySQLServer.Reset();
+            }
+            if (mariaDBServer != null)
+            {
+                mariaDBServer.Reset();
+            }
+        }
+
+        // Method will remove trailing comma from the column list prior to closing
+        private static void TrimEnd(bool clear = true)
+        {
+            if (CreateSQLScript)
+            {
+                sqlServer.TrimEnd(clear);
+            }
+            if (CreateOracleScript == true)
+            {
+                oracleServer.TrimEnd(clear);
+            }
+            if (CreatePostgreSQLScript == true)
+            {
+                postgreSQLServer.TrimEnd(clear);
+            }
+            if (CreateMySQLScript == true)
+            {
+                mySQLServer.TrimEnd(clear);
+            }
+            if (CreateMariaDBScript == true)
+            {
+                mariaDBServer.TrimEnd(clear);
             }
         }
         #endregion

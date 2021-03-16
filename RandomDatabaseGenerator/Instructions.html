@@ -35,9 +35,18 @@ SQL script if you choose to write that as well</p>
 &lt;add key=&quot;ScriptFolderPath&quot; value=&quot;C:\temp\&quot;/&gt;
 </code></pre>
 <p>And finally you can turn on or turn off the SQL Script generation. It is on by default.
-This way you can generate the file and use it on multiple systems.</p>
+This way you can generate the file and use it on multiple systems.
+Now extended to support other systems with appropriate translations</p>
 <pre><code class="language-Csharp">&lt;!-- Set this to true to write the SQL Statements to create the tables and insert the data --&gt;
-&lt;add key=&quot;CreateSQLScript&quot; value=&quot;true&quot;/&gt;
+&lt;   &lt;add key=&quot;CreateSQLScript&quot; value=&quot;true&quot;/&gt;
+    &lt;!-- Set this to true to write the Oracle SQL Statements to create the tables and insert the data --&gt;
+    &lt;add key=&quot;CreateOracleScript&quot; value=&quot;true&quot;/&gt;  
+    &lt;!-- Set this to true to write the Postgre SQL Statements to create the tables and insert the data --&gt;
+    &lt;add key=&quot;CreatePostgreSQLScript&quot; value=&quot;true&quot;/&gt;  
+    &lt;!-- Set this to true to write the MySQL SQL Statements to create the tables and insert the data --&gt;
+    &lt;add key=&quot;CreateMySQLScript&quot; value=&quot;true&quot;/&gt; 
+    &lt;!-- Set this to true to write the MariaDB SQL Statements to create the tables and insert the data --&gt;
+    &lt;add key=&quot;CreateMariaDBScript&quot; value=&quot;true&quot;/&gt;   
 </code></pre>
 
 

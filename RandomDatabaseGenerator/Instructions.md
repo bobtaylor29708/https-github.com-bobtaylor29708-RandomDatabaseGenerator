@@ -40,9 +40,17 @@ SQL script if you choose to write that as well
 
 And finally you can turn on or turn off the SQL Script generation. It is on by default.
 This way you can generate the file and use it on multiple systems.
-
+Now extended to support other systems with appropriate translations
 ```Csharp 
 <!-- Set this to true to write the SQL Statements to create the tables and insert the data -->
-<add key="CreateSQLScript" value="true"/>
+<   <add key="CreateSQLScript" value="true"/>
+    <!-- Set this to true to write the Oracle SQL Statements to create the tables and insert the data -->
+    <add key="CreateOracleScript" value="true"/>  
+    <!-- Set this to true to write the Postgre SQL Statements to create the tables and insert the data -->
+    <add key="CreatePostgreSQLScript" value="true"/>  
+    <!-- Set this to true to write the MySQL SQL Statements to create the tables and insert the data -->
+    <add key="CreateMySQLScript" value="true"/> 
+    <!-- Set this to true to write the MariaDB SQL Statements to create the tables and insert the data -->
+    <add key="CreateMariaDBScript" value="true"/>   
 ```
   
